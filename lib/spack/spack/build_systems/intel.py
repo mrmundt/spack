@@ -1174,51 +1174,56 @@ class IntelPackage(PackageBase):
         # our configuration accordingly. We can do this because the tokens are
         # quite long and specific.
 
-        validator_code = open('pset/check.awk', 'r').read()
-        # Let's go a little further and distill the tokens (plus some noise).
-        tokenlike_words = set(re.findall(r'[A-Z_]{4,}', validator_code))
+        if os.getenv('INTEL_CFG_FILE') and os.path.isfile(os.getenv('INTEL_CFG_FILE')):
+            # User specifies a path to an existing silent.cfg
+            from shutil import copyfile
+            copyfile(os.getenv('INTEL_CFG_FILE'), 'silent.cfg')
+        else:
+            validator_code = open('pset/check.awk', 'r').read()
+            # Let's go a little further and distill the tokens (plus some noise).
+            tokenlike_words = set(re.findall(r'[A-Z_]{4,}', validator_code))
 
-        # NB: .cfg files generated with the "--duplicate filename" option have
-        # the COMPONENTS string begin with a separator - do not worry about it.
-        components_joined = ';'.join(self._filtered_components)
-        nonrpm_db_dir = os.path.join(prefix, 'nonrpm-db')
+            # NB: .cfg files generated with the "--duplicate filename" option have
+            # the COMPONENTS string begin with a separator - do not worry about it.
+            components_joined = ';'.join(self._filtered_components)
+            nonrpm_db_dir = os.path.join(prefix, 'nonrpm-db')
 
-        config_draft = {
-            # Basics first - these should be accepted in all products.
-            'ACCEPT_EULA':                          'accept',
-            'PSET_MODE':                            'install',
-            'CONTINUE_WITH_OPTIONAL_ERROR':         'yes',
-            'CONTINUE_WITH_INSTALLDIR_OVERWRITE':   'yes',
-            'SIGNING_ENABLED':                      'no',
+            config_draft = {
+                # Basics first - these should be accepted in all products.
+                'ACCEPT_EULA':                          'accept',
+                'PSET_MODE':                            'install',
+                'CONTINUE_WITH_OPTIONAL_ERROR':         'yes',
+                'CONTINUE_WITH_INSTALLDIR_OVERWRITE':   'yes',
+                'SIGNING_ENABLED':                      'no',
 
-            # Highly variable package specifics:
-            'PSET_INSTALL_DIR':                     prefix,
-            'NONRPM_DB_DIR':                        nonrpm_db_dir,
-            'COMPONENTS':                           components_joined,
+                # Highly variable package specifics:
+                'PSET_INSTALL_DIR':                     prefix,
+                'NONRPM_DB_DIR':                        nonrpm_db_dir,
+                'COMPONENTS':                           components_joined,
 
-            # Conditional tokens; the first is supported post-2015 only.
-            # Ignore ia32; most recent products don't even provide it.
-            'ARCH_SELECTED':                        'INTEL64',   # was: 'ALL'
+                # Conditional tokens; the first is supported post-2015 only.
+                # Ignore ia32; most recent products don't even provide it.
+                'ARCH_SELECTED':                        'INTEL64',   # was: 'ALL'
 
-            # 'ism' component -- see uninstall_ism(); also varies by release.
-            'PHONEHOME_SEND_USAGE_DATA':            'no',
-            # Ah, as of 2018.2, that somewhat loaded term got replaced by one
-            # in business-speak. We uphold our preference, both out of general
-            # principles and for technical reasons like overhead and non-routed
-            # compute nodes.
-            'INTEL_SW_IMPROVEMENT_PROGRAM_CONSENT': 'no',
-        }
-        # Deal with licensing only if truly needed.
-        # NB: Token was 'ACTIVATION' pre ~2013, so basically irrelevant here.
-        if 'ACTIVATION_TYPE' in tokenlike_words:
-            config_draft.update(self._determine_license_type)
+                # 'ism' component -- see uninstall_ism(); also varies by release.
+                'PHONEHOME_SEND_USAGE_DATA':            'no',
+                # Ah, as of 2018.2, that somewhat loaded term got replaced by one
+                # in business-speak. We uphold our preference, both out of general
+                # principles and for technical reasons like overhead and non-routed
+                # compute nodes.
+                'INTEL_SW_IMPROVEMENT_PROGRAM_CONSENT': 'no',
+            }
+            # Deal with licensing only if truly needed.
+            # NB: Token was 'ACTIVATION' pre ~2013, so basically irrelevant here.
+            if 'ACTIVATION_TYPE' in tokenlike_words:
+                config_draft.update(self._determine_license_type)
 
-        # Write sorted *by token* so the file looks less like a hash dump.
-        f = open('silent.cfg', 'w')
-        for token, value in sorted(config_draft.items()):
-            if token in tokenlike_words:
-                f.write('%s=%s\n' % (token, value))
-        f.close()
+            # Write sorted *by token* so the file looks less like a hash dump.
+            f = open('silent.cfg', 'w')
+            for token, value in sorted(config_draft.items()):
+                if token in tokenlike_words:
+                    f.write('%s=%s\n' % (token, value))
+            f.close()
 
     def install(self, spec, prefix):
         '''Runs Intel's install.sh installation script. Afterwards, save the
