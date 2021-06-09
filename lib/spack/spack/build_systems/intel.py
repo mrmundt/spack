@@ -1176,8 +1176,10 @@ class IntelPackage(PackageBase):
 
         if os.getenv('INTEL_CFG_FILE') and os.path.isfile(os.getenv('INTEL_CFG_FILE')):
             # User specifies a path to an existing silent.cfg
-            from shutil import copyfile
-            copyfile(os.getenv('INTEL_CFG_FILE'), 'silent.cfg')
+            with open(os.getenv('INTEL_CFG_FILE'), 'r') as f:
+                contents = f.read()
+            with open('silent.cfg', 'w') as f:
+                f.write(contents.replace('PREFIX', prefix))
         else:
             validator_code = open('pset/check.awk', 'r').read()
             # Let's go a little further and distill the tokens (plus some noise).
